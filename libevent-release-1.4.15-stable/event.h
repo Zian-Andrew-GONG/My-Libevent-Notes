@@ -213,25 +213,51 @@ struct event_base;
 struct event {
 	TAILQ_ENTRY (event) ev_next;
 	TAILQ_ENTRY (event) ev_active_next;
-	TAILQ_ENTRY (event) ev_signal_next;
+	TAILQ_ENTRY (event) ev_signal_next;  // ev_*_next为双向链表节点指针，是libevent对不同事件类型和在不同时期，对事件的管理时使用到的字段
+  // libevent使用双向链表保存所有注册的I/O和Signal事件，
+  // ev_next就是该I/O事件在链表中的位置；称为“已注册事件链表”；
+  // ev_signal_next就是signal事件在signal事件链表中的位置；
+  // libevent将所有的激活事件存放在active_list中，然后遍历active_list指向调度。
+  // ev_active_next指明了event在active_list中的位置。
+
 	unsigned int min_heap_idx;	/* for managing timeouts */
+  // min_heap_idx：event在小根堆的索引
 
-	struct event_base *ev_base;
+	struct event_base *ev_base;  // 该事件所属的反应堆实例
 
-	int ev_fd;
-	short ev_events;
-	short ev_ncalls;
+	int ev_fd;  // 对于I/O事件，绑定的文件描述符；对于signal事件，绑定的信号
+	short ev_events;  // event关注的事件类型，可以为以下几类：
+  // 定时事件：EV_TIMEOUT, 
+  // I/O事件：EV_READ, EV_WRITE, 
+  // 信号：EV_SIGNAL, 
+  // 辅助选项：EV_PERSIST 表面是个永久事件
+  // 除了信号和I/O事件不能同时设置，其他几个选项都可以取|操作符
+
+	short ev_ncalls;  // 事件就绪执行时，调用ev_callback的次数，通常为1
 	short *ev_pncalls;	/* Allows deletes in callback */
+  // ev_pncalls通常指向ev_ncalls或者NULL
 
 	struct timeval ev_timeout;
+  // ev_timeout：event的超时值
 
 	int ev_pri;		/* smaller numbers are higher priority */
 
-	void (*ev_callback)(int, short, void *arg);
-	void *ev_arg;
+	void (*ev_callback)(int, short, void *arg);  // event的回调函数，被ev_base调用，执行事件处理程序
+  // 其中参数分别对应于：ev_fd、ev_events、ev_arg
+
+	void *ev_arg;  // 任意类型的数据，在设置event时指定
 
 	int ev_res;		/* result passed to event callback */
-	int ev_flags;
+  // 记录了当前激活事件的类型
+  
+	int ev_flags;  // libevent用于标记event信息的字段，表明当前状态，可能为：
+  // #define EVLIST_TIMEOUT	0x01  // event在time堆中
+  // #define EVLIST_INSERTED	0x02  // event在已注册事件链表中
+  // #define EVLIST_SIGNAL	0x04  // 
+  // #define EVLIST_ACTIVE	0x08  // event在激活链表中
+  // #define EVLIST_INTERNAL	0x10  // 内部使用标记
+  // #define EVLIST_INIT	0x80  //event已被初始化
+
 };
 #else
 struct event;
