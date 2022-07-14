@@ -644,7 +644,8 @@ event_base_once(struct event_base *base, int fd, short events,
 void
 event_set(struct event *ev, int fd, short events,
 	  void (*callback)(int, short, void *), void *arg)
-{
+{ // fd：对于I/O事件，为文件描述符；对于signal事件，为绑定的信号；对于定时事件，设为-1即可
+	// events：设置事件类型，EV_TIMEOUT、EV_READ、EV_WRITE、EV_SIGNAL、EV_PERSIST
 	/* Take the current base - caller needs to set the real base later */
 	ev->ev_base = current_base;
 
@@ -666,7 +667,7 @@ event_set(struct event *ev, int fd, short events,
 
 int
 event_base_set(struct event_base *base, struct event *ev)
-{
+{ // 把event注册到event_base
 	/* Only innocent events may be assigned to a different base */
 	if (ev->ev_flags != EVLIST_INIT)
 		return (-1);
@@ -684,7 +685,7 @@ event_base_set(struct event_base *base, struct event *ev)
 
 int
 event_priority_set(struct event *ev, int pri)
-{
+{ // 设置event的优先级
 	if (ev->ev_flags & EVLIST_ACTIVE)
 		return (-1);
 	if (pri < 0 || pri >= ev->ev_base->nactivequeues)
