@@ -195,6 +195,11 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 		timeout = MAX_EPOLL_TIMEOUT_MSEC;
 	}
 
+	// epfd参数指定要操作的内核事件表的文件描述符。
+	// events参数是一个用户数组，这个数组仅仅在epoll_wait返回时保存内核检测到的所有就绪事件，而不像select和poll的数组参数那样既用于传入用户注册的事件，又用于输出内核检测到的就绪事件。这就极大地提高了应用程序索引就绪文件描述符的效率。
+	// nevents参数指定用户数组的大小，即指定最多监听多少个事件，它必须大于0。
+	// timeout参数指定超时时间，单位为毫秒，如果timeout为0，则epoll_wait会立即
+	// 返回，如果timeout为-1，则epoll_wait会一直阻塞，直到有事件就绪。
 	res = epoll_wait(epollop->epfd, events, epollop->nevents, timeout);
 
 	if (res == -1) {
@@ -203,10 +208,10 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 			return (-1);
 		}
 
-		evsignal_process(base);
+		evsignal_process(base);  // 处理signal事件
 		return (0);
 	} else if (base->sig.evsignal_caught) {
-		evsignal_process(base);
+		evsignal_process(base);  // 处理signal事件
 	}
 
 	event_debug(("%s: epoll_wait reports %d", __func__, res));

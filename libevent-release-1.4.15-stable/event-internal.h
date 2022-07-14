@@ -35,20 +35,21 @@ extern "C" {
 #include "min_heap.h"
 #include "evsignal.h"
 
-struct eventop {
+struct eventop {  // 在libevent中，每种I/O demultiplex机制的实现都必须提供这五个函数接口，
+									// 来完成自身的初始化、销毁释放；对事件的注册、注销和分发
 	const char *name;
-	void *(*init)(struct event_base *);
-	int (*add)(void *, struct event *);
-	int (*del)(void *, struct event *);
-	int (*dispatch)(struct event_base *, void *, struct timeval *);
-	void (*dealloc)(struct event_base *, void *);
+	void *(*init)(struct event_base *);  // 初始化
+	int (*add)(void *, struct event *);  // 注册事件
+	int (*del)(void *, struct event *);  // 删除事件
+	int (*dispatch)(struct event_base *, void *, struct timeval *);  // 事件分发
+	void (*dealloc)(struct event_base *, void *);  // 注销，释放资源
 	/* set if we need to reinitialize the event base */
 	int need_reinit;
 };
 
 struct event_base {
-	const struct eventop *evsel;
-	void *evbase;
+	const struct eventop *evsel;  // 初始化Reactor的时候选择一种I/O复用机制，并记录
+	void *evbase;  // 指向I/O复用机制真正存储的数据，它通过evsel成员的init函数来初始化
 	int event_count;		/* counts number of total events */
 	int event_count_active;	/* counts number of active events */
 
@@ -56,18 +57,19 @@ struct event_base {
 	int event_break;		/* Set to terminate loop immediately */
 
 	/* active event management */
-	struct event_list **activequeues;
-	int nactivequeues;
+	struct event_list **activequeues;  // activequeues[priority]是一个链表，
+																		// 链表的每个节点指向一个优先级为priority对就绪事件event
+	int nactivequeues;  // nactivequeues是activequeues的数量
 
 	/* signal handling info */
-	struct evsignal_info sig;
+	struct evsignal_info sig;  // 用来管理信号的结构体
 
-	struct event_list eventqueue;
-	struct timeval event_tv;
+	struct event_list eventqueue;  // 链表，保存了所有注册事件的指针
+	struct timeval event_tv;  // 用于管理时间
 
-	struct min_heap timeheap;
+	struct min_heap timeheap;  // 管理定时事件的小根堆
 
-	struct timeval tv_cache;
+	struct timeval tv_cache;  // 用于管理时间
 };
 
 /* Internal use only: Functions that might be missing from <sys/queue.h> */
