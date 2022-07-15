@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "cstdlib": "c",
+    "streambuf": "c",
+    "system_error": "c"
+  }
+}

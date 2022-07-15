@@ -65,7 +65,7 @@ struct event_base {
 	struct evsignal_info sig;  // 用来管理信号的结构体
 
 	struct event_list eventqueue;  // 链表，保存了所有注册事件的指针
-	struct timeval event_tv;  // 用于管理时间
+	struct timeval event_tv;  // 用于管理时间，为last old time
 
 	struct min_heap timeheap;  // 管理定时事件的小根堆
 
