@@ -64,9 +64,9 @@ struct evepoll {
 struct epollop {
 	struct evepoll *fds;
 	int nfds;
-	struct epoll_event *events;
+	struct epoll_event *events;  // epoll_event结构体数组指针，.events用于指定事件类型，.data存放“用户数据”
 	int nevents;
-	int epfd;
+	int epfd;  // 内核数据表的文件描述符
 };
 
 static void *epoll_init	(struct event_base *);
@@ -102,12 +102,12 @@ const struct eventop epollops = {  // epoll的struct eventop
  */
 #define MAX_EPOLL_TIMEOUT_MSEC (35*60*1000)
 
-#define INITIAL_NFILES 32
-#define INITIAL_NEVENTS 32
+#define INITIAL_NFILES 32  // epollop.nfds
+#define INITIAL_NEVENTS 32  // epollop.nevents
 #define MAX_NEVENTS 4096
 
 static void *
-epoll_init(struct event_base *base)
+epoll_init(struct event_base *base)  // 初始化，分配epollop空间
 {
 	int epfd;
 	struct epollop *epollop;
@@ -117,7 +117,7 @@ epoll_init(struct event_base *base)
 		return (NULL);
 
 	/* Initalize the kernel queue */
-	if ((epfd = epoll_create(32000)) == -1) {
+	if ((epfd = epoll_create(32000)) == -1) {  // epoll_create返回一个文件描述符，用来识别内核事件表
 		if (errno != ENOSYS)
 			event_warn("epoll_create");
 		return (NULL);
@@ -128,7 +128,7 @@ epoll_init(struct event_base *base)
 	if (!(epollop = calloc(1, sizeof(struct epollop))))
 		return (NULL);
 
-	epollop->epfd = epfd;
+	epollop->epfd = epfd;  // 把epoll_create创建的内核事件表的文件描述符存放在epollop->epfd中
 
 	/* Initalize fields */
 	epollop->events = malloc(INITIAL_NEVENTS * sizeof(struct epoll_event));
@@ -152,7 +152,7 @@ epoll_init(struct event_base *base)
 }
 
 static int
-epoll_recalc(struct event_base *base, void *arg, int max)
+epoll_recalc(struct event_base *base, void *arg, int max)  // 重新分配arg(epollop)空间，nfds数值倍增
 {
 	struct epollop *epollop = arg;
 
@@ -179,10 +179,10 @@ epoll_recalc(struct event_base *base, void *arg, int max)
 }
 
 static int
-epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
+epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)  // 在tv时间内，把所有就绪的I/O事件加入active链表
 {
 	struct epollop *epollop = arg;
-	struct epoll_event *events = epollop->events;
+	struct epoll_event *events = epollop->events;  // epoll_event结构体数组指针，.events用于指定事件类型，.data存放“用户数据”
 	struct evepoll *evep;
 	int i, res, timeout = -1;
 
@@ -195,28 +195,30 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 		timeout = MAX_EPOLL_TIMEOUT_MSEC;
 	}
 
-	// epfd参数指定要操作的内核事件表的文件描述符。
-	// events参数是一个用户数组，这个数组仅仅在epoll_wait返回时保存内核检测到的所有就绪事件，而不像select和poll的数组参数那样既用于传入用户注册的事件，又用于输出内核检测到的就绪事件。这就极大地提高了应用程序索引就绪文件描述符的效率。
-	// nevents参数指定用户数组的大小，即指定最多监听多少个事件，它必须大于0。
-	// timeout参数指定超时时间，单位为毫秒，如果timeout为0，则epoll_wait会立即
-	// 返回，如果timeout为-1，则epoll_wait会一直阻塞，直到有事件就绪。
 	res = epoll_wait(epollop->epfd, events, epollop->nevents, timeout);
-
+	// epollop->epfd参数指定要操作的内核事件表的文件描述符。
+	// events参数是一个用户数组，这个数组仅仅在epoll_wait返回时保存内核检测到的所有就绪事件，
+		// 而不像select和poll的数组参数那样既用于传入用户注册的事件，又用于输出内核检测到的就绪事件。
+		// 这就极大地提高了应用程序索引就绪文件描述符的效率。
+	// nevents参数指定用户数组的大小，即指定最多监听多少个事件，它必须大于0。
+	// epollop->nevents参数指定超时时间，单位为毫秒，如果timeout为0，则epoll_wait会立即返回，
+		// 如果timeout为-1，则epoll_wait会一直阻塞，直到有事件就绪。
+	// 成功时返回就绪的文件描述符的个数，失败时返回-1，超时返回 0
 	if (res == -1) {
 		if (errno != EINTR) {
 			event_warn("epoll_wait");
 			return (-1);
 		}
 
-		evsignal_process(base);  // 处理signal事件
+		evsignal_process(base);  // 把signal事件链表里的ev移动到active链表中
 		return (0);
 	} else if (base->sig.evsignal_caught) {
-		evsignal_process(base);  // 处理signal事件
+		evsignal_process(base);  // 把signal事件链表里的ev移动到active链表中
 	}
 
 	event_debug(("%s: epoll_wait reports %d", __func__, res));
 
-	for (i = 0; i < res; i++) {
+	for (i = 0; i < res; i++) {  // 添加事件到激活链表
 		int what = events[i].events;
 		struct event *evread = NULL, *evwrite = NULL;
 		int fd = events[i].data.fd;
@@ -225,15 +227,15 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 			continue;
 		evep = &epollop->fds[fd];
 
-		if (what & (EPOLLHUP|EPOLLERR)) {
+		if (what & (EPOLLHUP|EPOLLERR)) {  // 挂起或错误
 			evread = evep->evread;
 			evwrite = evep->evwrite;
 		} else {
-			if (what & EPOLLIN) {
+			if (what & EPOLLIN) {  // 数据可读
 				evread = evep->evread;
 			}
 
-			if (what & EPOLLOUT) {
+			if (what & EPOLLOUT) {  // 数据可写
 				evwrite = evep->evwrite;
 			}
 		}
@@ -242,12 +244,12 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 			continue;
 
 		if (evread != NULL)
-			event_active(evread, EV_READ, 1);
+			event_active(evread, EV_READ, 1);  // 添加事件evread到激活链表
 		if (evwrite != NULL)
-			event_active(evwrite, EV_WRITE, 1);
+			event_active(evwrite, EV_WRITE, 1);  // 添加事件evwrite到激活链表
 	}
 
-	if (res == epollop->nevents && epollop->nevents < MAX_NEVENTS) {
+	if (res == epollop->nevents && epollop->nevents < MAX_NEVENTS) {  // 为struct epollop准备更大的空间
 		/* We used all of the event space this time.  We should
 		   be ready for more events next time. */
 		int new_nevents = epollop->nevents * 2;
@@ -266,20 +268,20 @@ epoll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 
 
 static int
-epoll_add(void *arg, struct event *ev)
+epoll_add(void *arg, struct event *ev)  // 使用epoll_ctl添加epoll事件
 {
 	struct epollop *epollop = arg;
 	struct epoll_event epev = {0, {0}};
 	struct evepoll *evep;
 	int fd, op, events;
 
-	if (ev->ev_events & EV_SIGNAL)
+	if (ev->ev_events & EV_SIGNAL)  // signal事件
 		return (evsignal_add(ev));
 
 	fd = ev->ev_fd;
 	if (fd >= epollop->nfds) {
 		/* Extent the file descriptor array as necessary */
-		if (epoll_recalc(ev->ev_base, epollop, fd) == -1)
+		if (epoll_recalc(ev->ev_base, epollop, fd) == -1)  // 为新的epoll事件增加空间
 			return (-1);
 	}
 	evep = &epollop->fds[fd];
@@ -299,9 +301,16 @@ epoll_add(void *arg, struct event *ev)
 	if (ev->ev_events & EV_WRITE)
 		events |= EPOLLOUT;
 
-	epev.data.fd = fd;
-	epev.events = events;
-	if (epoll_ctl(epollop->epfd, op, ev->ev_fd, &epev) == -1)
+	epev.data.fd = fd;  // 指定事件所从属的目标文件描述符
+	epev.events = events;  // 表示事件类型
+	if (epoll_ctl(epollop->epfd, op, ev->ev_fd, &epev) == -1)  
+	// epoll_ctl用来操作内核事件表，epfd为内核事件表的文件描述符；
+	// op参数指定操作类型
+		// - EPOLL_CTL_ADD 往内核事件表中注册 fd 上的事件。
+		// - EPOLL_CTL_MOD 修改 fd 上的注册事件。
+		// - EPOLL_CTL_DEL 删除 fd 上的注册事件。
+	// ev->ev_fd指定要操作的文件描述符
+	// &epev指定事件，为epoll_event结构指针类型
 			return (-1);
 
 	/* Update events responsible */
@@ -314,7 +323,7 @@ epoll_add(void *arg, struct event *ev)
 }
 
 static int
-epoll_del(void *arg, struct event *ev)
+epoll_del(void *arg, struct event *ev)  // 使用epoll_ctl删除epoll事件
 {
 	struct epollop *epollop = arg;
 	struct epoll_event epev = {0, {0}};
@@ -350,8 +359,8 @@ epoll_del(void *arg, struct event *ev)
 		}
 	}
 
-	epev.events = events;
-	epev.data.fd = fd;
+	epev.events = events;  // 指定事件类型
+	epev.data.fd = fd;  // 指定事件从属的目标文件描述符
 
 	if (needreaddelete)
 		evep->evread = NULL;
@@ -359,13 +368,20 @@ epoll_del(void *arg, struct event *ev)
 		evep->evwrite = NULL;
 
 	if (epoll_ctl(epollop->epfd, op, fd, &epev) == -1)
+	// epoll_ctl用来操作内核事件表，epfd为内核事件表的文件描述符；
+	// op参数指定操作类型
+		// - EPOLL_CTL_ADD 往内核事件表中注册 fd 上的事件。
+		// - EPOLL_CTL_MOD 修改 fd 上的注册事件。
+		// - EPOLL_CTL_DEL 删除 fd 上的注册事件。
+	// fd指定要操作的文件描述符
+	// &epev指定事件，为epoll_event结构指针类型
 		return (-1);
 
 	return (0);
 }
 
 static void
-epoll_dealloc(struct event_base *base, void *arg)
+epoll_dealloc(struct event_base *base, void *arg)  // 释放资源
 {
 	struct epollop *epollop = arg;
 

@@ -546,12 +546,13 @@ event_base_loop(struct event_base *base, int flags)  // event_loop的线程安�
 
 		// 调用系统I/O demultiplexer等待就绪的I/O events，可能是epoll_wait或者select
 		// 在evsel->dispatch中，会把就绪signal event、I/O event插入到激活链表中
-		res = evsel->dispatch(base, evbase, tv_p);
+		res = evsel->dispatch(base, evbase, tv_p);  
+		// 以epoll为例，dispatch操作会在tv_p时间内，把所有就绪的I/O事件加入active链表
 
-		if (res == -1)
+		if (res == -1)  // dispatch操作失败
 			return (-1);
 		gettime(base, &base->tv_cache);  // 将time cache赋值为当前系统时间
-		
+
 		// 检查heap中的timer events，将就绪的timer events从heap中删除，并插入到激活链表中
 		timeout_process(base);
 
@@ -855,7 +856,7 @@ event_del(struct event *ev)  // 从base中删除事件ev
 }
 
 void
-event_active(struct event *ev, int res, short ncalls)  // 添加事件ev到timer heap中
+event_active(struct event *ev, int res, short ncalls)  // 添加事件ev到激活链表
 { // res一般为EV_READ、EV_WRITE、EV_ACTIVE等
 	/* We get different kinds of events, add them together */
 	if (ev->ev_flags & EVLIST_ACTIVE) {
