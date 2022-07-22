@@ -479,6 +479,13 @@ event_loop(int flags)  // 执行事件主循环
 	return event_base_loop(current_base, flags);
 }
 
+/* loop的工作流程：
+	1.根据系统时间校正timer heap的所有超时时间；
+	2.根据timer heap的最小超时时间设置I/O复用的最大等待时间；
+	3.调用dispatch，把所有就绪的signal、/O事件加入active链表
+	4.检查heap中的timer events，将就绪的timer events从heap中删除，并插入到active链表中；
+	5.按优先级处理active events。
+ */
 int
 event_base_loop(struct event_base *base, int flags)  // event_loop的线程安全版
 {
@@ -547,7 +554,7 @@ event_base_loop(struct event_base *base, int flags)  // event_loop的线程安�
 		// 调用系统I/O demultiplexer等待就绪的I/O events，可能是epoll_wait或者select
 		// 在evsel->dispatch中，会把就绪signal event、I/O event插入到激活链表中
 		res = evsel->dispatch(base, evbase, tv_p);  
-		// 以epoll为例，dispatch操作会在tv_p时间内，把所有就绪的I/O事件加入active链表
+		// 以epoll为例，dispatch操作会在tv_p时间内，把所有就绪的signal、/O事件加入active链表
 
 		if (res == -1)  // dispatch操作失败
 			return (-1);
