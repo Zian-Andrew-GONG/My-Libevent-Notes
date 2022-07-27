@@ -435,7 +435,7 @@ gettime(struct event_base *base, struct timeval *tp)
 }
 
 int
-event_base_gettimeofday_cached(struct event_base *base, struct timeval *tv)
+event_base_gettimeofday_cached(struct event_base *base, struct timeval *tv)  // 返回时间；如果在执行callback，则返回tv_out缓存的时间
 {
 	int r;
 	if (!base) {
@@ -472,7 +472,7 @@ update_time_cache(struct event_base *base)
 }
 
 int
-event_base_update_cache_time(struct event_base *base)
+event_base_update_cache_time(struct event_base *base)  // 强制立即更新缓存
 {
 
 	if (!base) {
@@ -502,7 +502,7 @@ event_to_event_callback(struct event *ev)
 }
 
 struct event_base *
-event_init(void)
+event_init(void)  // 创建一个event base对象，相当于一个Reactor实例
 {
 	struct event_base *base = event_base_new_with_config(NULL);
 
@@ -517,13 +517,13 @@ event_init(void)
 }
 
 struct event_base *
-event_base_new(void)
+event_base_new(void)  // 返回一个默认设置的event_base指针；在大多数程序中，默认设置就足够了
 {
 	struct event_base *base = NULL;
-	struct event_config *cfg = event_config_new();
+	struct event_config *cfg = event_config_new();  // 返回一个默认设置的event_config指针
 	if (cfg) {
-		base = event_base_new_with_config(cfg);
-		event_config_free(cfg);
+		base = event_base_new_with_config(cfg);  // 利用event_config生成event_base
+		event_config_free(cfg);  // 释放event_config资源
 	}
 	return base;
 }
@@ -952,7 +952,8 @@ event_base_free_nofinalize(struct event_base *base)
 }
 
 void
-event_base_free(struct event_base *base)
+event_base_free(struct event_base *base)  // 释放event_base；
+// 但是不会释放当前与event_base关联的任何事件，或关闭它们的任何套接字，或释放它们的任何指针。
 {
 	event_base_free_(base, 1);
 }
@@ -978,7 +979,7 @@ const struct eventop nil_eventop = {
 
 /* reinitialize the event base after a fork */
 int
-event_reinit(struct event_base *base)
+event_reinit(struct event_base *base)  // fork后重新初始化event_base
 {
 	const struct eventop *evsel;
 	int res = 0;
@@ -1101,7 +1102,7 @@ event_gettime_monotonic(struct event_base *base, struct timeval *tv)
 }
 
 const char **
-event_get_supported_methods(void)
+event_get_supported_methods(void)  // 返回此版本Libevent支持的方法名称数组的指针；但是操作系统不一定支持
 {
 	static const char **methods = NULL;
 	const struct eventop **method;
@@ -1169,7 +1170,7 @@ event_config_free(struct event_config *cfg)
 }
 
 int
-event_config_set_flag(struct event_config *cfg, int flag)
+event_config_set_flag(struct event_config *cfg, int flag)  // 设置event_base在构建时设置的运行时flag
 {
 	if (!cfg)
 		return -1;
@@ -1178,7 +1179,7 @@ event_config_set_flag(struct event_config *cfg, int flag)
 }
 
 int
-event_config_avoid_method(struct event_config *cfg, const char *method)
+event_config_avoid_method(struct event_config *cfg, const char *method)  // 按名称避免特定的可用后端，例如*method="select"
 {
 	struct event_config_entry *entry = mm_malloc(sizeof(*entry));
 	if (entry == NULL)
@@ -1195,7 +1196,7 @@ event_config_avoid_method(struct event_config *cfg, const char *method)
 }
 
 int
-event_config_require_features(struct event_config *cfg,
+event_config_require_features(struct event_config *cfg,  // 设置不满足features的后端不能运行
     int features)
 {
 	if (!cfg)
@@ -1205,7 +1206,7 @@ event_config_require_features(struct event_config *cfg,
 }
 
 int
-event_config_set_num_cpus_hint(struct event_config *cfg, int cpus)
+event_config_set_num_cpus_hint(struct event_config *cfg, int cpus)  // 生成的event_base应该在多线程时尝试充分利用给定数量的 PU
 {
 	if (!cfg)
 		return (-1);
@@ -1215,7 +1216,11 @@ event_config_set_num_cpus_hint(struct event_config *cfg, int cpus)
 
 int
 event_config_set_max_dispatch_interval(struct event_config *cfg,
-    const struct timeval *max_interval, int max_callbacks, int min_priority)
+    const struct timeval *max_interval, int max_callbacks, int min_priority)  // 防止优先级反转
+		// 通过限制在检查更多高优先级事件之前可以调用多少个低优先级事件回调来防止优先级反转。
+		// 如果max_interval不为null，则事件循环会检查每次回调后的时间，如果max_interval已过，则重新扫描高优先级事件。
+		// 如果max_callbacks为非负数，则事件循环还会在调用max_callbacks回调后检查更多事件。
+		// 这些规则适用于min_priority或更高的任何事件。
 {
 	if (max_interval)
 		memcpy(&cfg->max_dispatch_interval, max_interval,
@@ -1237,7 +1242,7 @@ event_priority_init(int npriorities)
 }
 
 int
-event_base_priority_init(struct event_base *base, int npriorities)
+event_base_priority_init(struct event_base *base, int npriorities)  // 设置优先级数
 {
 	int i, r;
 	r = -1;
@@ -1277,7 +1282,7 @@ err:
 }
 
 int
-event_base_get_npriorities(struct event_base *base)
+event_base_get_npriorities(struct event_base *base)  // 返回设置的优先级数
 {
 
 	int n;
@@ -1818,7 +1823,7 @@ event_base_dispatch(struct event_base *event_base)
 }
 
 const char *
-event_base_get_method(const struct event_base *base)
+event_base_get_method(const struct event_base *base)  // 返回event_base使用的实际方法的名称
 {
 	EVUTIL_ASSERT(base);
 	return (base->evsel->name);
@@ -1873,7 +1878,7 @@ event_base_loopbreak(struct event_base *event_base)
 }
 
 int
-event_base_loopcontinue(struct event_base *event_base)
+event_base_loopcontinue(struct event_base *event_base)  // 通常用于在callback运行后立即停止loop再重新开始循环
 {
 	int r = 0;
 	if (event_base == NULL)
@@ -1920,7 +1925,7 @@ event_loop(int flags)
 }
 
 int
-event_base_loop(struct event_base *base, int flags)
+event_base_loop(struct event_base *base, int flags)  // 开启事件循环
 {
 	const struct eventop *evsel = base->evsel;
 	struct timeval tv;
@@ -2048,7 +2053,7 @@ event_once(evutil_socket_t fd, short events,
 
 /* Schedules an event once */
 int
-event_base_once(struct event_base *base, evutil_socket_t fd, short events,
+event_base_once(struct event_base *base, evutil_socket_t fd, short events,  // 创建一次性event
     void (*callback)(evutil_socket_t, short, void *),
     void *arg, const struct timeval *tv)
 {
@@ -2111,7 +2116,7 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 
 int
 event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
-{
+{ // 和even_new一样，但是*ev参数必须指向未初始化的事件。
 	if (!base)
 		base = current_base;
 	if (arg == &event_self_cbarg_ptr_)
@@ -2185,13 +2190,13 @@ event_set(struct event *ev, evutil_socket_t fd, short events,
 }
 
 void *
-event_self_cbarg(void)
+event_self_cbarg(void)  // 调用event_new时创建一个event，它的callback的参数就是指向自己的指针
 {
 	return &event_self_cbarg_ptr_;
 }
 
 struct event *
-event_base_get_running_event(struct event_base *base)
+event_base_get_running_event(struct event_base *base)  // 返回正在运行的event
 {
 	struct event *ev = NULL;
 	EVBASE_ACQUIRE_LOCK(base, th_base_lock);
@@ -2206,7 +2211,20 @@ event_base_get_running_event(struct event_base *base)
 
 struct event *
 event_new(struct event_base *base, evutil_socket_t fd, short events, void (*cb)(evutil_socket_t, short, void *), void *arg)
-{
+{ // base指定新创建的时间处理从属的Reactor。
+	// fd指定与该事件处理器关联的句柄。
+		// 创建I/O事件处理器时，应该给fd传递文件描述符值；
+		// 创建信号事件处理器时，应该给fd传递信号值；
+		// 创建定时事件处理器时，应该给fd参数传递-1。
+	// event指定事件类型：
+		// #define EV_TIMEOUT	0x01  // 定时事件
+		// #define EV_READ		0x02  // 可读事件
+		// #define EV_WRITE	0x04  // 可写事件
+		// #define EV_SIGNAL	0x08  // 信号事件
+		// #define EV_PERSIST	0x10  // 永久事件。事件被触发后，自动重新对这个event调用event_add函数
+		// #define EV_ET		0x20  // 边沿触发事件
+	// cb指定目标事件对应的回调函数，arg为cb的第三个参数
+	
 	struct event *ev;
 	ev = mm_malloc(sizeof(struct event));
 	if (ev == NULL)
@@ -2220,7 +2238,7 @@ event_new(struct event_base *base, evutil_socket_t fd, short events, void (*cb)(
 }
 
 void
-event_free(struct event *ev)
+event_free(struct event *ev)  // 删除事件
 {
 	/* This is disabled, so that events which have been finalized be a
 	 * valid target for event_free(). That's */
@@ -2353,7 +2371,7 @@ event_callback_finalize_many_(struct event_base *base, int n_cbs, struct event_c
  */
 
 int
-event_priority_set(struct event *ev, int pri)
+event_priority_set(struct event *ev, int pri)  // 设置事件的优先级
 {
 	event_debug_assert_is_setup_(ev);
 
@@ -2372,7 +2390,7 @@ event_priority_set(struct event *ev, int pri)
  */
 
 int
-event_pending(const struct event *ev, short event, struct timeval *tv)
+event_pending(const struct event *ev, short event, struct timeval *tv)  // return flags & event
 {
 	int flags = 0;
 
@@ -2417,7 +2435,7 @@ event_initialized(const struct event *ev)
 
 void
 event_get_assignment(const struct event *event, struct event_base **base_out, evutil_socket_t *fd_out, short *events_out, event_callback_fn *callback_out, void **arg_out)
-{
+{ // 用传入的指针获取event的信息
 	event_debug_assert_is_setup_(event);
 
 	if (base_out)
@@ -2433,41 +2451,41 @@ event_get_assignment(const struct event *event, struct event_base **base_out, ev
 }
 
 size_t
-event_get_struct_event_size(void)
+event_get_struct_event_size(void)  // 返回event结构体的字节大小
 {
 	return sizeof(struct event);
 }
 
 evutil_socket_t
-event_get_fd(const struct event *ev)
+event_get_fd(const struct event *ev)  // 返回事件的文件描述符
 {
 	event_debug_assert_is_setup_(ev);
 	return ev->ev_fd;
 }
 
 struct event_base *
-event_get_base(const struct event *ev)
+event_get_base(const struct event *ev)  // 返回event的event_base
 {
 	event_debug_assert_is_setup_(ev);
 	return ev->ev_base;
 }
 
 short
-event_get_events(const struct event *ev)
+event_get_events(const struct event *ev)  // 返回flags：EV_READ, EV_WRITE, etc
 {
 	event_debug_assert_is_setup_(ev);
 	return ev->ev_events;
 }
 
 event_callback_fn
-event_get_callback(const struct event *ev)
+event_get_callback(const struct event *ev)  // 返回event的callback
 {
 	event_debug_assert_is_setup_(ev);
 	return ev->ev_callback;
 }
 
 void *
-event_get_callback_arg(const struct event *ev)
+event_get_callback_arg(const struct event *ev)  // 返回传入callback的参数
 {
 	event_debug_assert_is_setup_(ev);
 	return ev->ev_arg;
@@ -2481,7 +2499,7 @@ event_get_priority(const struct event *ev)
 }
 
 int
-event_add(struct event *ev, const struct timeval *tv)
+event_add(struct event *ev, const struct timeval *tv)  // pending an event
 {
 	int res;
 
@@ -2571,7 +2589,7 @@ event_remove_timer_nolock_(struct event *ev)
 }
 
 int
-event_remove_timer(struct event *ev)
+event_remove_timer(struct event *ev)  // remove a pending event’s timeout completely
 {
 	int res;
 
@@ -2784,7 +2802,7 @@ event_del_(struct event *ev, int blocking)
 }
 
 int
-event_del(struct event *ev)
+event_del(struct event *ev)  // non-pending an event
 {
 	return event_del_(ev, EVENT_DEL_AUTOBLOCK);
 }
@@ -2898,7 +2916,7 @@ event_del_nolock_(struct event *ev, int blocking)
 }
 
 void
-event_active(struct event *ev, int res, short ncalls)
+event_active(struct event *ev, int res, short ncalls)  // 手动激活event
 {
 	if (EVUTIL_FAILURE_CHECK(!ev->ev_base)) {
 		event_warnx("%s: event has no event_base set.", __func__);
@@ -3796,7 +3814,7 @@ dump_active_event_fn(const struct event_base *base, const struct event *e, void 
 }
 
 int
-event_base_foreach_event(struct event_base *base,
+event_base_foreach_event(struct event_base *base,  // 在 event_base 中的每个事件上运行一个函数
     event_base_foreach_event_cb fn, void *arg)
 {
 	int r;
@@ -3811,7 +3829,7 @@ event_base_foreach_event(struct event_base *base,
 
 
 void
-event_base_dump_events(struct event_base *base, FILE *output)
+event_base_dump_events(struct event_base *base, FILE *output)  // 输出在event_base中添加的所有事件及其状态的完整列表
 {
 	EVBASE_ACQUIRE_LOCK(base, th_base_lock);
 	fprintf(output, "Inserted events:\n");

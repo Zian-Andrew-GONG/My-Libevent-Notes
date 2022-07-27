@@ -1336,7 +1336,7 @@ int event_initialized(const struct event *ev);
 /**
    Get the signal number assigned to a signal event
 */
-#define event_get_signal(ev) ((int)event_get_fd(ev))
+#define event_get_signal(ev) ((int)event_get_fd(ev))  // 返回信号事件的信号量
 
 /**
    Get the socket or signal assigned to an event, or -1 if the event has
